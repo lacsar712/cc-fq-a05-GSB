@@ -46,8 +46,9 @@ docker compose up --build
 2. **样例库** 看到 2 条样例 → 选合格样例 **提交质控作业**。
 3. 作业详情页看到四个 Actor 阶段均为成功，指标卡出现 `reads` / `mean_quality` / `n_rate`。
 4. 再跑损坏样例：`ParseActor` = failed，其余 = skipped。
-5. 退出，用 `auditor` / `audit123456` 登录：可看历史与详情，提交作业接口返回 403 / 前端无提交入口。
-6. 健康检查：`curl http://localhost:8184/api/health`
+5. 详情页点 **下载质控摘录**：成功/失败作业均可下载后端签发的 `job-<id>-qc-excerpt.txt`，文件中的 Actor 阶段数与详情页一致。
+6. 退出，用 `auditor` / `audit123456` 登录：可看历史与详情、可下载质控摘录，提交作业接口返回 403 / 前端无提交入口。
+7. 健康检查：`curl http://localhost:8184/api/health`
 
 ## API
 
@@ -58,6 +59,7 @@ docker compose up --build
 - `GET  /api/jobs`
 - `GET  /api/jobs/{id}`
 - `GET  /api/jobs/{id}/stages`
+- `GET  /api/jobs/{id}/excerpt` — 后端签发的质控摘录下载（`text/plain` 附件，含作业状态、样例名、三指标与各 Actor 阶段状态；成功/失败作业均可，登录即可含审计员）
 
 ## 本地单测（可选）
 
@@ -81,9 +83,9 @@ pytest -q
     seed.py
     data/{good,broken}.fastq
     app/
-      main.py api.py auth.py models.py schemas.py
+      main.py api.py auth.py models.py schemas.py excerpt.py
       pipeline/{actors,runner}.py
-    tests/test_actors.py
+    tests/{test_actors,test_excerpt}.py
   frontend/
     Dockerfile nginx.conf
     src/pages/{Login,Samples,JobSubmit,JobDetail,JobHistory}Page.vue

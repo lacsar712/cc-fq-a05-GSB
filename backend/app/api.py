@@ -1,8 +1,10 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import authenticate_user, create_access_token, get_current_user, require_bioops
 from app.database import SessionLocal, get_db
+from app.excerpt import build_job_excerpt
 from app.models import Job, JobStage, Sample
 from app.pipeline.runner import create_job_stages, run_pipeline_sync
 from app.schemas import (
@@ -112,6 +114,28 @@ def get_job(job_id: int, _user: dict = Depends(get_current_user), db: Session = 
     if not job:
         raise HTTPException(status_code=404, detail="作业不存在")
     return job
+
+
+@router.get("/jobs/{job_id}/excerpt")
+def download_job_excerpt(
+    job_id: int, _user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Backend-issued QC excerpt download; any signed-in role (incl. auditor)."""
+    job = (
+        db.query(Job)
+        .options(joinedload(Job.stages))
+        .filter(Job.id == job_id)
+        .first()
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    excerpt = build_job_excerpt(job)
+    return PlainTextResponse(
+        content=excerpt,
+        headers={
+            "Content-Disposition": f"attachment; filename=job-{job.id}-qc-excerpt.txt"
+        },
+    )
 
 
 @router.get("/jobs/{job_id}/stages", response_model=list[StageOut])

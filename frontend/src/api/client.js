@@ -57,6 +57,23 @@ export async function getJobStages(id) {
   return data
 }
 
+// The excerpt file is generated and issued by the backend; the browser only
+// saves the received blob (no client-side assembly of the report content).
+export async function downloadJobExcerpt(id) {
+  const res = await api.get(`/jobs/${id}/excerpt`, { responseType: 'blob' })
+  const dispo = res.headers['content-disposition'] || ''
+  const match = dispo.match(/filename="?([^";]+)"?/)
+  const filename = match ? match[1] : `job-${id}-qc-excerpt.txt`
+  const url = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export async function createJob(body) {
   const { data } = await api.post('/jobs', body)
   return data
