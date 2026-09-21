@@ -43,6 +43,16 @@
       <template #body-cell-actions="props">
         <q-td :props="props">
           <q-btn dense flat color="primary" label="详情" :to="`/jobs/${props.row.id}`" />
+          <q-btn
+            v-if="['success', 'failed'].includes(props.row.status)"
+            dense
+            flat
+            color="primary"
+            icon="download"
+            title="下载质控摘录"
+            :loading="downloadingId === props.row.id"
+            @click="onDownload(props.row)"
+          />
         </q-td>
       </template>
     </q-table>
@@ -52,12 +62,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
-import { listJobs } from '../api/client'
+import { listJobs, downloadJobExcerpt } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
 const $q = useQuasar()
 const loading = ref(false)
+const downloadingId = ref(null)
 const rows = ref([])
 
 const columns = [
@@ -82,6 +93,17 @@ function statusLabel(s) {
 
 function statusColor(s) {
   return { pending: 'grey', running: 'info', success: 'positive', failed: 'negative' }[s] || 'grey'
+}
+
+async function onDownload(row) {
+  downloadingId.value = row.id
+  try {
+    await downloadJobExcerpt(row.id)
+  } catch (e) {
+    $q.notify({ type: 'negative', message: e.message || '摘录下载失败' })
+  } finally {
+    downloadingId.value = null
+  }
 }
 
 async function load() {

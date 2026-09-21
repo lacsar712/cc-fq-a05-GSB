@@ -1,8 +1,13 @@
+from datetime import datetime, timezone
+from urllib.parse import quote
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import authenticate_user, create_access_token, get_current_user, require_bioops
 from app.database import SessionLocal, get_db
+from app.excerpt import excerpt_filename, excerpt_filename_utf8, render_excerpt
 from app.models import Job, JobStage, Sample
 from app.pipeline.runner import create_job_stages, run_pipeline_sync
 from app.schemas import (
@@ -126,4 +131,36 @@ def get_job_stages(
         .filter(JobStage.job_id == job_id)
         .order_by(JobStage.stage_order)
         .all()
+    )
+
+
+@router.get("/jobs/{job_id}/excerpt")
+def download_job_excerpt(
+    job_id: int, _user: dict = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    """Issue a server-generated, signed QC excerpt for one job.
+
+    Available to every authenticated role (bioops and auditor) and for both
+    successful and failed jobs. The content is rendered and signed by the
+    backend; the browser never assembles the excerpt itself.
+    """
+    job = (
+        db.query(Job)
+        .options(joinedload(Job.stages))
+        .filter(Job.id == job_id)
+        .first()
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="作业不存在")
+    stages = sorted(job.stages, key=lambda s: s.stage_order)
+    content = render_excerpt(job, stages, datetime.now(timezone.utc))
+    ascii_name = excerpt_filename(job)
+    utf8_name = quote(excerpt_filename_utf8(job))
+    # ASCII fallback for the plain token; filename* (RFC 5987) keeps the
+    # possibly-Chinese sample name for modern browsers.
+    disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": disposition},
     )

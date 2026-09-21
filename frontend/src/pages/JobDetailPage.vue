@@ -4,6 +4,16 @@
       <div class="text-h5">作业详情 #{{ job?.id || '…' }}</div>
       <q-space />
       <q-btn flat icon="refresh" label="刷新" @click="load" :loading="loading" />
+      <q-btn
+        outline
+        color="primary"
+        icon="download"
+        label="下载质控摘录"
+        :disable="!canDownload"
+        :loading="downloading"
+        class="q-mx-sm"
+        @click="onDownload"
+      />
       <q-btn flat label="返回历史" to="/jobs" />
     </div>
 
@@ -68,14 +78,31 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { getJob, getJobStages } from '../api/client'
+import { getJob, getJobStages, downloadJobExcerpt } from '../api/client'
 
 const route = useRoute()
 const $q = useQuasar()
 const loading = ref(false)
+const downloading = ref(false)
 const job = ref(null)
 const stages = ref([])
 let timer = null
+
+const canDownload = computed(() =>
+  ['success', 'failed'].includes(job.value?.status),
+)
+
+async function onDownload() {
+  if (!job.value) return
+  downloading.value = true
+  try {
+    await downloadJobExcerpt(job.value.id)
+  } catch (e) {
+    $q.notify({ type: 'negative', message: e.message || '摘录下载失败' })
+  } finally {
+    downloading.value = false
+  }
+}
 
 const metrics = computed(() => job.value?.metrics || null)
 
